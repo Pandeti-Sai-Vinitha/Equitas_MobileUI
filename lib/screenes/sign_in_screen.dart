@@ -25,11 +25,18 @@ class _SignInScreenState extends State<SignInScreen> {
   void _signIn() {
     if (!_formKey.currentState!.validate()) return;
 
-    Navigator.of(context).pushReplacement(
+    final navigator = Navigator.of(context);
+    navigator.pushReplacement(
       PageRouteBuilder<void>(
         transitionDuration: const Duration(milliseconds: 550),
         pageBuilder: (context, animation, secondaryAnimation) =>
-            const SavingsChatScreen(),
+            SavingsChatScreen(
+              onLogout: () {
+                navigator.pushReplacement<void, void>(
+                  MaterialPageRoute<void>(builder: (_) => const SignInScreen()),
+                );
+              },
+            ),
         transitionsBuilder: (context, animation, secondaryAnimation, child) {
           final curved = CurvedAnimation(
             parent: animation,

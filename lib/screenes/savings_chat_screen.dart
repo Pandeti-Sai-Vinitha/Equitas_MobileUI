@@ -5,7 +5,6 @@ import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
-import '../services/local_account_store.dart';
 import '../widgets/glowing_blue_sphere.dart';
 import '../widgets/voice_prompt_overlay.dart';
 
@@ -16,15 +15,6 @@ SystemUiOverlayStyle _systemOverlayStyle(BuildContext context) =>
     _isLightTheme(context)
     ? SystemUiOverlayStyle.dark
     : SystemUiOverlayStyle.light;
-
-String _displayNameFromEmail(String email) {
-  final name = email.split('@').first.replaceAll(RegExp(r'[._-]+'), ' ').trim();
-  return name
-      .split(RegExp(r'\s+'))
-      .where((part) => part.isNotEmpty)
-      .map((part) => '${part[0].toUpperCase()}${part.substring(1)}')
-      .join(' ');
-}
 
 String _shortReportDate(DateTime date) {
   const months = [
@@ -61,12 +51,12 @@ String _failedTransactionsReply(DateTime now) {
 class SavingsChatScreen extends StatefulWidget {
   const SavingsChatScreen({
     super.key,
-    required this.userEmail,
+    required this.userName,
     required this.onLogout,
     required this.onThemeChanged,
   });
 
-  final String userEmail;
+  final String userName;
   final VoidCallback onLogout;
   final ValueChanged<bool> onThemeChanged;
 
@@ -75,7 +65,6 @@ class SavingsChatScreen extends StatefulWidget {
 }
 
 class _SavingsChatScreenState extends State<SavingsChatScreen> {
-  static const _previousDefaultSavingsBalance = 23345.10;
   static const _defaultSavingsBalance = 250000.0;
 
   final _messageController = TextEditingController();
@@ -87,8 +76,6 @@ class _SavingsChatScreenState extends State<SavingsChatScreen> {
   double _recurringDepositBalance = 30000;
   double _monthlyRecurringDeposit = 5000;
   int _debitCardLimit = 50000;
-  bool _isRestoringState = true;
-  Object? _restoreError;
   String? _inlineMonthlySpendingQuery;
   int? _inlineMonthlySpendingConversationIndex;
   String? _inlineFailedTransactionsQuery;
@@ -101,13 +88,6 @@ class _SavingsChatScreenState extends State<SavingsChatScreen> {
   String? _inlineTransferQuery;
   int? _inlineTransferConversationIndex;
   _TransferRequest? _inlineTransferRequest;
-  Future<void> _saveQueue = Future<void>.value();
-
-  @override
-  void initState() {
-    super.initState();
-    unawaited(_restoreProfile());
-  }
 
   @override
   void dispose() {
@@ -115,103 +95,6 @@ class _SavingsChatScreenState extends State<SavingsChatScreen> {
     _scrollController.dispose();
     _pageController.dispose();
     super.dispose();
-  }
-
-  Future<void> _restoreProfile() async {
-    try {
-      final profile = await LocalAccountStore.instance.loadProfile(
-        widget.userEmail,
-      );
-      var shouldPersist = profile == null;
-      if (profile != null) {
-        _checkingBalance = _readDouble(profile, 'checkingBalance');
-        if (_checkingBalance == _previousDefaultSavingsBalance) {
-          _checkingBalance = _defaultSavingsBalance;
-          shouldPersist = true;
-        }
-        _fixedDepositBalance = _readDouble(profile, 'fixedDepositBalance');
-        _recurringDepositBalance = _readDouble(
-          profile,
-          'recurringDepositBalance',
-        );
-        _monthlyRecurringDeposit = _readDouble(
-          profile,
-          'monthlyRecurringDeposit',
-        );
-        final savedDebitCardLimit = _readInt(profile, 'debitCardLimit');
-        _debitCardLimit = savedDebitCardLimit == 75000
-            ? 50000
-            : savedDebitCardLimit;
-        shouldPersist |= _debitCardLimit != savedDebitCardLimit;
-        final savedConversations = profile['conversations'];
-        if (savedConversations is! List) {
-          throw const FormatException(
-            'Saved conversation history has an invalid format.',
-          );
-        }
-        _conversations
-          ..clear()
-          ..addAll(
-            savedConversations.map((conversation) {
-              if (conversation is! Map<String, dynamic>) {
-                throw const FormatException(
-                  'A saved conversation has an invalid format.',
-                );
-              }
-              return _ConversationRecord.fromJson(conversation);
-            }),
-          );
-      }
-      if (!mounted) return;
-      setState(() {
-        _isRestoringState = false;
-        _restoreError = null;
-      });
-      if (shouldPersist) _persistState();
-    } catch (error, stackTrace) {
-      debugPrint('Could not restore local account data: $error\n$stackTrace');
-      if (!mounted) return;
-      setState(() {
-        _isRestoringState = false;
-        _restoreError = error;
-      });
-    }
-  }
-
-  double _readDouble(Map<String, Object?> profile, String key) {
-    final value = profile[key];
-    if (value is num) return value.toDouble();
-    throw FormatException('Saved account field "$key" is invalid.');
-  }
-
-  int _readInt(Map<String, Object?> profile, String key) {
-    final value = profile[key];
-    if (value is int) return value;
-    throw FormatException('Saved account field "$key" is invalid.');
-  }
-
-  Map<String, Object?> _profileSnapshot() => {
-    'checkingBalance': _checkingBalance,
-    'fixedDepositBalance': _fixedDepositBalance,
-    'recurringDepositBalance': _recurringDepositBalance,
-    'monthlyRecurringDeposit': _monthlyRecurringDeposit,
-    'debitCardLimit': _debitCardLimit,
-    'conversations': _conversations.map((record) => record.toJson()).toList(),
-  };
-
-  void _persistState() {
-    final snapshot = _profileSnapshot();
-    final save = _saveQueue.then(
-      (_) => LocalAccountStore.instance.saveProfile(widget.userEmail, snapshot),
-    );
-    _saveQueue = save.catchError((Object error, StackTrace stackTrace) {
-      debugPrint('Could not save local account data: $error\n$stackTrace');
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Could not save account data: $error')),
-        );
-      }
-    });
   }
 
   void _sendMessage(String value) {
@@ -239,7 +122,6 @@ class _SavingsChatScreenState extends State<SavingsChatScreen> {
         ),
       );
     });
-    _persistState();
     if (_isMonthlySpendingQuery(text) ||
         _isFailedTransactionsQuery(text) ||
         fdRequest != null ||
@@ -361,12 +243,10 @@ class _SavingsChatScreenState extends State<SavingsChatScreen> {
       onTransferCompleted: (amount) {
         if (!mounted) return;
         setState(() => _checkingBalance -= amount);
-        _persistState();
       },
       onDebitLimitSet: (limit) {
         if (!mounted) return;
         setState(() => _debitCardLimit = limit);
-        _persistState();
       },
       onFdBooked: (amount) {
         if (!mounted) return;
@@ -374,7 +254,6 @@ class _SavingsChatScreenState extends State<SavingsChatScreen> {
           _checkingBalance -= amount;
           _fixedDepositBalance += amount;
         });
-        _persistState();
       },
       onRdBooked: (monthlyAmount) {
         if (!mounted) return;
@@ -383,7 +262,6 @@ class _SavingsChatScreenState extends State<SavingsChatScreen> {
           _recurringDepositBalance += monthlyAmount;
           _monthlyRecurringDeposit = monthlyAmount;
         });
-        _persistState();
       },
       messageController: _messageController,
       onSubmitted: _sendMessage,
@@ -426,7 +304,6 @@ class _SavingsChatScreenState extends State<SavingsChatScreen> {
         activity: activity,
       );
     });
-    _persistState();
   }
 
   String _replyFor(String message) {
@@ -564,48 +441,6 @@ class _SavingsChatScreenState extends State<SavingsChatScreen> {
 
   @override
   Widget build(BuildContext context) {
-    if (_isRestoringState) {
-      return const Scaffold(
-        key: ValueKey('profile-restore-loading'),
-        body: Center(child: CircularProgressIndicator()),
-      );
-    }
-    if (_restoreError != null) {
-      return Scaffold(
-        key: const ValueKey('profile-restore-error'),
-        body: Center(
-          child: Padding(
-            padding: const EdgeInsets.all(28),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                const Text(
-                  'Your saved account data could not be loaded.',
-                  textAlign: TextAlign.center,
-                ),
-                const SizedBox(height: 8),
-                Text('Details: $_restoreError', textAlign: TextAlign.center),
-                const SizedBox(height: 16),
-                FilledButton(
-                  onPressed: () {
-                    setState(() {
-                      _isRestoringState = true;
-                      _restoreError = null;
-                    });
-                    unawaited(_restoreProfile());
-                  },
-                  child: const Text('Try again'),
-                ),
-                TextButton(
-                  onPressed: widget.onLogout,
-                  child: const Text('Sign out'),
-                ),
-              ],
-            ),
-          ),
-        ),
-      );
-    }
     return AnnotatedRegion<SystemUiOverlayStyle>(
       value: _systemOverlayStyle(context),
       child: Scaffold(
@@ -719,7 +554,7 @@ class _SavingsChatScreenState extends State<SavingsChatScreen> {
                               checkingBalance: _checkingBalance,
                               fixedDepositBalance: _fixedDepositBalance,
                               recurringDepositBalance: _recurringDepositBalance,
-                              userName: _displayNameFromEmail(widget.userEmail),
+                              userName: widget.userName,
                             ),
                           ),
                           _SwipeDepthLayer(
@@ -2603,33 +2438,6 @@ class _ConversationRecord {
   final String response;
   final DateTime createdAt;
   final List<String> activities;
-
-  Map<String, Object?> toJson() => {
-    'query': query,
-    'response': response,
-    'createdAt': createdAt.toIso8601String(),
-    'activities': activities,
-  };
-
-  factory _ConversationRecord.fromJson(Map<String, dynamic> json) {
-    final query = json['query'];
-    final response = json['response'];
-    final createdAt = json['createdAt'];
-    final activities = json['activities'];
-    if (query is! String ||
-        response is! String ||
-        createdAt is! String ||
-        activities is! List ||
-        activities.any((activity) => activity is! String)) {
-      throw const FormatException('Saved conversation fields are invalid.');
-    }
-    return _ConversationRecord(
-      query: query,
-      response: response,
-      createdAt: DateTime.parse(createdAt),
-      activities: activities.cast<String>(),
-    );
-  }
 
   _ConversationRecord copyWith({String? response, String? activity}) =>
       _ConversationRecord(

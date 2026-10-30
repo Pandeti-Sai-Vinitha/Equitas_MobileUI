@@ -8,6 +8,15 @@ import '../widgets/glowing_blue_sphere.dart';
 bool _isLightTheme(BuildContext context) =>
     Theme.of(context).brightness == Brightness.light;
 
+String _displayNameFromEmail(String email) {
+  final name = email.split('@').first.replaceAll(RegExp(r'[._-]+'), ' ').trim();
+  return name
+      .split(RegExp(r'\s+'))
+      .where((part) => part.isNotEmpty)
+      .map((part) => '${part[0].toUpperCase()}${part.substring(1)}')
+      .join(' ');
+}
+
 class SignInScreen extends StatefulWidget {
   const SignInScreen({super.key, required this.onThemeChanged});
 
@@ -19,6 +28,7 @@ class SignInScreen extends StatefulWidget {
 
 class _SignInScreenState extends State<SignInScreen> {
   final _formKey = GlobalKey<FormState>();
+  final _userNameController = TextEditingController();
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
   bool _isSignUp = false;
@@ -27,6 +37,7 @@ class _SignInScreenState extends State<SignInScreen> {
 
   @override
   void dispose() {
+    _userNameController.dispose();
     _emailController.dispose();
     _passwordController.dispose();
     super.dispose();
@@ -36,9 +47,13 @@ class _SignInScreenState extends State<SignInScreen> {
     if (_isAuthenticating || !_formKey.currentState!.validate()) return;
     setState(() => _isAuthenticating = true);
 
+    final isSignUp = _isSignUp;
     final email = _emailController.text.trim().toLowerCase();
+    final userName = isSignUp
+        ? _userNameController.text.trim()
+        : _displayNameFromEmail(email);
     try {
-      final authenticated = _isSignUp
+      final authenticated = isSignUp
           ? await LocalAccountStore.instance.register(
               email,
               _passwordController.text,
@@ -64,6 +79,8 @@ class _SignInScreenState extends State<SignInScreen> {
         return;
       }
 
+      await LocalAccountStore.instance.clearSavedProfile(email);
+      if (!mounted) return;
       FocusManager.instance.primaryFocus?.unfocus();
       await SystemChannels.textInput.invokeMethod<void>('TextInput.hide');
       if (!mounted) return;
@@ -73,7 +90,7 @@ class _SignInScreenState extends State<SignInScreen> {
           transitionDuration: const Duration(milliseconds: 550),
           pageBuilder: (context, animation, secondaryAnimation) =>
               SavingsChatScreen(
-                userEmail: email,
+                userName: userName,
                 onThemeChanged: widget.onThemeChanged,
                 onLogout: () {
                   navigator.pushReplacement<void, void>(
@@ -205,6 +222,22 @@ class _SignInScreenState extends State<SignInScreen> {
                             ),
                           ),
                           const SizedBox(height: 22),
+                          if (_isSignUp) ...[
+                            _InputField(
+                              controller: _userNameController,
+                              isLightTheme: _isLightTheme(context),
+                              label: 'Username',
+                              hint: 'Your name',
+                              keyboardType: TextInputType.name,
+                              validator: (value) {
+                                if (value == null || value.trim().isEmpty) {
+                                  return 'Enter your name';
+                                }
+                                return null;
+                              },
+                            ),
+                            const SizedBox(height: 10),
+                          ],
                           _InputField(
                             controller: _emailController,
                             isLightTheme: _isLightTheme(context),

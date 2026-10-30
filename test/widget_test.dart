@@ -54,11 +54,12 @@ Future<void> _enterApp(WidgetTester tester) async {
     await tester.ensureVisible(find.text('New here? Create an account'));
     await tester.tap(find.text('New here? Create an account'));
     await tester.pumpAndSettle();
+    await tester.enterText(find.byType(TextFormField).at(0), 'Alex Morgan');
     await tester.enterText(
-      find.byType(TextFormField).at(0),
+      find.byType(TextFormField).at(1),
       'alex@example.com',
     );
-    await tester.enterText(find.byType(TextFormField).at(1), 'password123');
+    await tester.enterText(find.byType(TextFormField).at(2), 'password123');
     await tester.ensureVisible(find.text('Create account'));
     await tester.tap(find.text('Create account'));
     await tester.pumpAndSettle();
@@ -117,6 +118,14 @@ void main() {
 
     expect(find.text('Banking, in\nyour own words.'), findsOneWidget);
     expect(find.text('Sign in securely'), findsOneWidget);
+    await tester.ensureVisible(find.text('New here? Create an account'));
+    await tester.tap(find.text('New here? Create an account'));
+    await tester.pumpAndSettle();
+    expect(find.text('Username'), findsOneWidget);
+    expect(find.byType(TextFormField), findsNWidgets(3));
+    await tester.ensureVisible(find.text('Already have an account? Sign in'));
+    await tester.tap(find.text('Already have an account? Sign in'));
+    await tester.pumpAndSettle();
 
     expect(find.byType(TextFormField), findsNWidgets(2));
 
@@ -125,7 +134,7 @@ void main() {
     expect(find.text('Savings •••• 4821'), findsOneWidget);
     expect(_homeSavingsBalance('₹2,50,000.00'), findsOneWidget);
     expect(find.byKey(const ValueKey('home-greeting')), findsOneWidget);
-    expect(find.textContaining('Alex!'), findsOneWidget);
+    expect(find.textContaining('Alex Morgan!'), findsOneWidget);
     final personalizedInsight = tester.widget<Text>(
       find.byKey(const ValueKey('home-personalized-insight')),
     );
@@ -216,6 +225,20 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.text('Banking, in\nyour own words.'), findsOneWidget);
     expect(find.text('Sign in securely'), findsOneWidget);
+    expect(
+      tester
+          .widget<TextFormField>(find.byType(TextFormField).at(0))
+          .controller!
+          .text,
+      isEmpty,
+    );
+    expect(
+      tester
+          .widget<TextFormField>(find.byType(TextFormField).at(1))
+          .controller!
+          .text,
+      isEmpty,
+    );
 
     await signIn();
     final homeComposer = find.descendant(
@@ -1190,7 +1213,7 @@ void main() {
     expect(_homeSavingsBalance('₹2,49,500.00'), findsOneWidget);
   });
 
-  testWidgets('account data and transfer history survive app restart', (
+  testWidgets('banking data and conversation history reset on app restart', (
     tester,
   ) async {
     await tester.pumpWidget(const MyApp());
@@ -1226,19 +1249,11 @@ void main() {
     await _enterApp(tester);
 
     await _waitForSavingsSummary(tester);
-    expect(_homeSavingsBalance('₹2,49,500.00'), findsOneWidget);
-
-    await tester.flingFrom(const Offset(100, 300), const Offset(500, 0), 1200);
-    await tester.pumpAndSettle();
-    expect(find.text('Send ₹500 to my mom for savings'), findsOneWidget);
-    await tester.tap(find.text('Send ₹500 to my mom for savings'));
-    await tester.pumpAndSettle();
-    expect(find.text('YOUR QUESTION'), findsOneWidget);
-    expect(find.text('EQUITAS RESPONSE'), findsOneWidget);
-    expect(find.text('Transfer successful in the app balance'), findsOneWidget);
+    expect(_homeSavingsBalance('₹2,50,000.00'), findsOneWidget);
+    expect(find.text('Send ₹500 to my mom for savings'), findsNothing);
   });
 
-  testWidgets('debit limit increase responds directly and persists', (
+  testWidgets('debit limit increase responds directly for this session', (
     tester,
   ) async {
     await tester.pumpWidget(const MyApp());

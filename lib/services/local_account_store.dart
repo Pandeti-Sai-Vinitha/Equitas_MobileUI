@@ -43,22 +43,8 @@ class LocalAccountStore {
         password;
   }
 
-  Future<Map<String, Object?>?> loadProfile(String email) async {
-    final encoded = await _secureStorage.read(key: _profileKey(email));
-    if (encoded == null) return null;
-
-    final decoded = jsonDecode(encoded);
-    if (decoded is! Map<String, dynamic>) {
-      throw const FormatException('Saved account data has an invalid format.');
-    }
-    return decoded;
-  }
-
-  Future<void> saveProfile(String email, Map<String, Object?> profile) async {
-    await _secureStorage.write(
-      key: _profileKey(email),
-      value: jsonEncode(profile),
-    );
+  Future<void> clearSavedProfile(String email) async {
+    await _secureStorage.delete(key: _profileKey(email));
   }
 
   String _credentialKey(String accountId) => 'equitas_password_$accountId';

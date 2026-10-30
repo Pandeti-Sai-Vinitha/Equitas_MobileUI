@@ -3715,8 +3715,9 @@ class _QuestionResponsePageState extends State<_QuestionResponsePage> {
     }
     if (widget.showFailedTransactions) {
       return _FailedTransactionsResponse(
-        onTicketRaised: () =>
-            widget.onActivity('Support ticket raised for failed transactions'),
+        onTicketRaised: () => widget.onActivity(
+          'Support ticket raised for expired card transaction',
+        ),
       );
     }
     return _GenericResponse(text: widget.response);
@@ -7412,7 +7413,13 @@ class _FailedTransactionsResponse extends StatefulWidget {
 
 class _FailedTransactionsResponseState
     extends State<_FailedTransactionsResponse> {
-  bool _ticketRaised = false;
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) widget.onTicketRaised();
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -7423,56 +7430,12 @@ class _FailedTransactionsResponseState
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Row(
-            children: [
-              const Expanded(
-                child: Text(
-                  '3 transactions',
-                  style: TextStyle(
-                    fontSize: 14,
-                    fontWeight: FontWeight.w600,
-                    color: Colors.white,
-                  ),
-                ),
-              ),
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 5),
-                decoration: BoxDecoration(
-                  color: const Color(0xFF1E5790).withValues(alpha: 0.4),
-                  borderRadius: BorderRadius.circular(14),
-                  border: Border.all(
-                    color: const Color(0xFF80BCFF).withValues(alpha: 0.35),
-                  ),
-                ),
-                child: const Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Icon(
-                      Icons.auto_awesome_rounded,
-                      size: 12,
-                      color: Color(0xFF9FD3FF),
-                    ),
-                    SizedBox(width: 5),
-                    Text(
-                      'AI transaction review',
-                      style: TextStyle(
-                        fontSize: 10,
-                        fontWeight: FontWeight.w600,
-                        color: Color(0xFFD8E9FC),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 10),
           _HighlightedReportText(
             key: const ValueKey('failed-transactions-intro'),
             spans: [
               const TextSpan(text: 'I found '),
               const TextSpan(
-                text: '3 failed transactions',
+                text: '4 failed transactions',
                 style: TextStyle(fontWeight: FontWeight.w800),
               ),
               TextSpan(
@@ -7481,7 +7444,7 @@ class _FailedTransactionsResponseState
                     'attempted value of ',
               ),
               const TextSpan(
-                text: '₹3,769',
+                text: '₹4,969',
                 style: TextStyle(
                   fontWeight: FontWeight.w800,
                   color: Color(0xFF9FD3FF),
@@ -7499,91 +7462,10 @@ class _FailedTransactionsResponseState
               TextSpan(
                 text:
                     'No funds were debited. Each decline reason is listed '
-                    'above; you can raise a support ticket if you need help.',
+                    'with its transaction.',
               ),
             ],
           ),
-          const SizedBox(height: 14),
-          if (_ticketRaised)
-            Container(
-              key: const ValueKey('failed-transactions-ticket-confirmation'),
-              width: double.infinity,
-              padding: const EdgeInsets.all(13),
-              decoration: BoxDecoration(
-                color: const Color(0xFF123D70).withValues(alpha: 0.7),
-                borderRadius: BorderRadius.circular(10),
-                border: Border.all(
-                  color: const Color(0xFF72D7B3).withValues(alpha: 0.55),
-                ),
-              ),
-              child: const Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Icon(
-                    Icons.check_circle_rounded,
-                    color: Color(0xFF72D7B3),
-                    size: 20,
-                  ),
-                  SizedBox(width: 9),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          'Support ticket raised',
-                          style: TextStyle(
-                            fontSize: 13,
-                            fontWeight: FontWeight.w700,
-                            color: Colors.white,
-                          ),
-                        ),
-                        SizedBox(height: 4),
-                        Text(
-                          'Reference: EQ-TKT-0914 • We’ll review these '
-                          'declined transactions.',
-                          key: ValueKey('failed-transactions-ticket-reference'),
-                          style: TextStyle(
-                            fontSize: 11,
-                            height: 1.35,
-                            color: Color(0xFFD8E9FC),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ],
-              ),
-            )
-          else
-            Align(
-              alignment: Alignment.centerLeft,
-              child: TextButton.icon(
-                key: const ValueKey('raise-failed-transactions-ticket'),
-                onPressed: () {
-                  widget.onTicketRaised();
-                  setState(() => _ticketRaised = true);
-                },
-                icon: const Icon(Icons.support_agent_rounded, size: 16),
-                label: const Text('Raise support ticket'),
-                style: TextButton.styleFrom(
-                  foregroundColor: const Color(0xFFB9D9FF),
-                  minimumSize: const Size(0, 34),
-                  padding: const EdgeInsets.symmetric(horizontal: 10),
-                  tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                  visualDensity: VisualDensity.compact,
-                  side: BorderSide(
-                    color: const Color(0xFF80BCFF).withValues(alpha: 0.35),
-                  ),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(9),
-                  ),
-                  textStyle: const TextStyle(
-                    fontSize: 12,
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-              ),
-            ),
         ],
       ),
     );
@@ -7660,6 +7542,16 @@ class _FailedTransactionList extends StatelessWidget {
                 'International transactions are currently disabled for '
                 'this card.',
             itemKey: ValueKey('failed-transaction-Netflix'),
+          ),
+          const Divider(height: 18, color: Color(0xFF243F60)),
+          _FailedTransactionItem(
+            icon: 'U',
+            merchant: 'Uber',
+            time: '10:26 PM',
+            amount: '₹1,200',
+            reason: 'Card expired',
+            detail: 'This card has expired. Update the card to try again.',
+            itemKey: const ValueKey('failed-transaction-Uber'),
           ),
         ],
       ),
@@ -7759,6 +7651,18 @@ class _FailedTransactionItem extends StatelessWidget {
                   color: Color(0xFFD5E7FC),
                 ),
               ),
+              if (reason == 'Card expired') ...[
+                const SizedBox(height: 6),
+                const Text(
+                  'Support ticket raised • Reference: EQ-TKT-0914',
+                  key: ValueKey('failed-transactions-ticket-confirmation'),
+                  style: TextStyle(
+                    fontSize: 11,
+                    fontWeight: FontWeight.w600,
+                    color: Color(0xFF72D7B3),
+                  ),
+                ),
+              ],
             ],
           ),
         ),
